@@ -1,0 +1,35 @@
+
+# Secrets and credentials
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
+*.token
+*.session
+
+# Minecraft authentication
+launcher_accounts.json
+usercache.json
+accounts.json
+
+# Local configuration
+config/servers.json
+
+# Runtime data
+logs/
+crash-reports/
+runtime/
+cache/
+temp/
+
+# Build outputs
+build/
+dist/
+out/
+*.jar
+*.class
+
+# IDE files
+.idea/
+.vscode/
