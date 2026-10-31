@@ -1,0 +1,138 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minecraft Headless Builder</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 30px;
+      background: #10141c;
+      color: #f1f5f9;
+      font-family: Arial, sans-serif;
+    }
+
+    .container {
+      max-width: 950px;
+      margin: auto;
+    }
+
+    h1 {
+      color: #64e6a5;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 18px;
+      margin-top: 30px;
+    }
+
+    .card {
+      background: #1b2330;
+      border: 1px solid #303c4d;
+      border-radius: 14px;
+      padding: 22px;
+    }
+
+    .value {
+      font-size: 28px;
+      font-weight: bold;
+      margin-top: 12px;
+    }
+
+    .status {
+      color: #64e6a5;
+    }
+
+    button {
+      background: #64e6a5;
+      color: #10141c;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    #message {
+      color: #94a3b8;
+      margin-top: 18px;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="container">
+    <h1>⚒ Minecraft Builder</h1>
+    <p class="subtitle">Headless Minecraft Control Dashboard</p>
+
+    <div class="grid">
+      <div class="card">
+        <div>Backend Status</div>
+        <div class="value status" id="backend">Checking...</div>
+      </div>
+
+      <div class="card">
+        <div>Active Minecraft Clients</div>
+        <div class="value" id="clients">0 / 2</div>
+      </div>
+
+      <div class="card">
+        <div>Active Builds</div>
+        <div class="value" id="builds">0</div>
+      </div>
+    </div>
+
+    <button onclick="checkStatus()">Refresh Status</button>
+
+    <p id="message">Waiting for backend connection...</p>
+  </main>
+
+  <script>
+    async function checkStatus() {
+      const message = document.getElementById("message");
+
+      try {
+        const response = await fetch("/api/status");
+
+        if (!response.ok) {
+          throw new Error("Backend unavailable");
+        }
+
+        const data = await response.json();
+
+        document.getElementById("backend").textContent =
+          data.server;
+
+        document.getElementById("clients").textContent =
+          `${data.minecraftClients} / ${data.maxClients}`;
+
+        document.getElementById("builds").textContent =
+          data.activeBuilds;
+
+        message.textContent = "Dashboard connected successfully.";
+      } catch (error) {
+        document.getElementById("backend").textContent =
+          "Offline";
+
+        message.textContent = "Backend connection not available yet.";
+      }
+    }
+
+    checkStatus();
+  </script>
+</body>
+</html>
