@@ -1,106 +1,40 @@
-const nbt = require("prismarine-nbt");
-const zlib = require("zlib");
+const nbt = require('prismarine-nbt');
 
-function getValue(value) {
-  if (value && typeof value === "object" && "value" in value) {
-    return value.value;
-  }
-  return value;
-}
-
-function decodeVarints(data, expectedCount) {
-  const blocks = [];
-  let value = 0;
-  let shift = 0;
-
+function value(v) { return v && typeof v === 'object' && Object.prototype.hasOwnProperty.call(v, 'value') ? v.value : v; }
+function decodeVarints(input, count) {
+  const data = Buffer.from(input);
+  const out = new Array(count);
+  let n = 0, shift = 0, index = 0;
   for (const byte of data) {
-    value |= (byte & 0x7f) << shift;
-
-    if ((byte & 0x80) === 0) {
-      blocks.push(value >>> 0);
-      value = 0;
-      shift = 0;
-
-      if (blocks.length === expectedCount) break;
-    } else {
+    n |= (byte & 0x7f) << shift;
+    if (byte & 0x80) {
       shift += 7;
-
-      if (shift > 28) {
-        throw new Error("Invalid block data: VarInt is too large");
-      }
+      if (shift > 28) throw new Error('Invalid VarInt in schematic BlockData');
+    } else {
+      if (index >= count) break;
+      out[index++] = n >>> 0;
+      n = 0; shift = 0;
     }
   }
-
-  if (blocks.length !== expectedCount) {
-    throw new Error(
-      `Block count mismatch: expected ${expectedCount}, got ${blocks.length}`
-    );
-  }
-
-  return blocks;
+  if (index !== count) throw new Error(`BlockData length mismatch: expected ${count}, decoded ${index}`);
+  return out;
 }
-
 async function parseSchematic(buffer) {
   let parsed;
-
-  try {
-    parsed = await nbt.parse(buffer);
-  } catch (error) {
-    throw new Error("Could not read NBT data: " + error.message);
-  }
-
+  try { parsed = await nbt.parse(buffer); }
+  catch (e) { throw new Error(`NBT parse failed: ${e.message}`); }
   const root = nbt.simplify(parsed);
-
-  const schematic = root.Schematic || root;
-
-  const width = Number(getValue(schematic.Width));
-  const height = Number(getValue(schematic.Height));
-  const length = Number(getValue(schematic.Length));
-
-  if (
-    !Number.isInteger(width) ||
-    !Number.isInteger(height) ||
-    !Number.isInteger(length) ||
-    width < 1 ||
-    height < 1 ||
-    length < 1
-  ) {
-    throw new Error("Invalid schematic dimensions or unsupported format");
-  }
-
-  const palette = getValue(schematic.Palette);
-  const blockData = getValue(schematic.BlockData);
-
-  if (!palette || !blockData) {
-    throw new Error("Sponge schematic Palette or BlockData is missing");
-  }
-
-  const expectedCount = width * height * length;
-
-  if (expectedCount > 1000000) {
-    throw new Error("Schematic is too large (maximum 1 million blocks)");
-  }
-
-  const paletteEntries = Object.entries(palette)
-    .map(([name, id]) => [Number(getValue(id)), name])
-    .sort((a, b) => a[0] - b[0]);
-
-  const paletteById = Object.fromEntries(paletteEntries);
-
-  const blocks = decodeVarints(
-    Buffer.from(blockData),
-    expectedCount
-  );
-
-  return {
-    format: "Sponge Schematic",
-    width,
-    height,
-    length,
-    totalBlocks: blocks.length,
-    palette: paletteById,
-    blocks
-  };
+  const s = root.Schematic || root.schematic || root;
+  const width = Number(value(s.Width)), height = Number(value(s.Height)), length = Number(value(s.Length));
+  if (![width, height, length].every(Number.isInteger) || width < 1 || height < 1 || length < 1) throw new Error('Unsupported schematic: missing valid Width/Height/Length');
+  const count = width * height * length;
+  if (!Number.isSafeInteger(count) || count > 1000000) throw new Error('Schematic exceeds the 1,000,000 voxel safety limit');
+  const rawPalette = value(s.Palette);
+  const rawData = value(s.BlockData);
+  if (!rawPalette || !rawData) throw new Error('Sponge schematic Palette or BlockData is missing');
+  const palette = {};
+  for (const [name, id] of Object.entries(rawPalette)) palette[Number(value(id))] = name;
+  const blocks = decodeVarints(rawData, count);
+  return { format: 'Sponge .schem', width, height, length, totalBlocks: blocks.length, palette, blocks };
 }
-
 module.exports = { parseSchematic };
